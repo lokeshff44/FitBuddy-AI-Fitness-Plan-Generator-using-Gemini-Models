@@ -1,0 +1,75 @@
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
+from typing import List
+from config import GEMINI_API_KEY, MODEL_NAME, SYSTEM_INSTRUCTION
+
+
+# Dynamic Structured Output Schema using Pydantic
+class Exercise(BaseModel):
+    name: str = Field(description="Name of the exercise")
+    sets: int = Field(description="Recommended number of sets")
+    reps: str = Field(description="Reps or duration (e.g., '10-12 reps' or '45 secs')")
+    rest_seconds: int = Field(description="Rest time between sets in seconds")
+    cues: str = Field(description="Key technical cue or execution tip")
+
+
+class DailyWorkout(BaseModel):
+    day_name: str = Field(description="e.g., Day 1: Upper Body Push")
+    focus_area: str = Field(description="Target muscle groups or fitness focus")
+    warmup: List[str] = Field(description="List of warmup exercises")
+    exercises: List[Exercise]
+    cooldown: List[str] = Field(description="List of cooldown/stretching exercises")
+
+
+class NutritionMacro(BaseModel):
+    calories: int = Field(description="Target daily calorie intake")
+    protein_grams: int = Field(description="Target protein in grams")
+    carbs_grams: int = Field(description="Target carbohydrates in grams")
+    fats_grams: int = Field(description="Target fats in grams")
+
+
+class FitnessPlanSchema(BaseModel):
+    plan_title: str
+    target_summary: str
+    weekly_routine: List[DailyWorkout]
+    nutrition_targets: NutritionMacro
+    dietary_tips: List[str]
+    safety_notes: List[str]
+
+
+class FitBuddyEngine:
+    def __init__(self, api_key: str = GEMINI_API_KEY):
+        if not api_key:
+            raise ValueError("Gemini API key is required. Check your .env file.")
+        self.client = genai.Client(api_key=api_key)
+
+    def generate_plan(self, user_profile: dict) -> FitnessPlanSchema:
+        """Calls Gemini with Structured Outputs enabled to enforce plan schema."""
+        prompt = f"""
+        Generate a comprehensive, custom fitness plan for the following client profile:
+        - Age: {user_profile.get('age')} years
+        - Gender: {user_profile.get('gender')}
+        - Primary Goal: {user_profile.get('goal')}
+        - Experience Level: {user_profile.get('fitness_level')}
+        - Workout Frequency: {user_profile.get('days_per_week')} days per week
+        - Location/Equipment: {user_profile.get('location')} ({user_profile.get('equipment')})
+        - Dietary Preference: {user_profile.get('diet_preference')}
+        - Health Concerns / Limitations: {user_profile.get('injuries', 'None')}
+        """
+
+        config = types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION,
+            response_mime_type="application/json",
+            response_schema=FitnessPlanSchema,
+            temperature=0.3,
+        )
+
+        response = self.client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config=config,
+        )
+
+        # Parse output using Pydantic model
+        return FitnessPlanSchema.model_validate_json(response.text)

@@ -1,0 +1,8 @@
+fitbuddy/
+│
+├── config.py           # Configuration settings, system prompts, & constants
+├── gemini_engine.py    # Direct integration with Google Generative AI (Gemini)
+├── ui_components.py    # Reusable Streamlit UI components & layout helpers
+├── requirements.txt    # Python dependencies
+├── .env                # API Keys and local environment variables
+└── app.py              # Main application driver
